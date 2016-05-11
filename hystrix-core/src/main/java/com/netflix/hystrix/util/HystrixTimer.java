@@ -1,12 +1,12 @@
 /**
  * Copyright 2012 Netflix, Inc.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -72,17 +72,17 @@ public class HystrixTimer {
      * NOTE: It is the responsibility of code that adds a listener via this method to clear this listener when completed.
      * <p>
      * <blockquote>
-     * 
+     *
      * <pre> {@code
-     * // add a TimerListener 
+     * // add a TimerListener
      * Reference<TimerListener> listener = HystrixTimer.getInstance().addTimerListener(listenerImpl);
-     * 
+     *
      * // sometime later, often in a thread shutdown, request cleanup, servlet filter or something similar the listener must be shutdown via the clear() method
      * listener.clear();
      * }</pre>
      * </blockquote>
-     * 
-     * 
+     *
+     *
      * @param listener
      *            TimerListener implementation that will be triggered according to its <code>getIntervalTimeInMilliseconds()</code> method implementation.
      * @return reference to the TimerListener that allows cleanup via the <code>clear()</code> method
@@ -104,16 +104,19 @@ public class HystrixTimer {
         };
 
         ScheduledFuture<?> f = executor.get().getThreadPool().scheduleAtFixedRate(r, listener.getIntervalTimeInMilliseconds(), listener.getIntervalTimeInMilliseconds(), TimeUnit.MILLISECONDS);
-        return new TimerReference(listener, f);
+        return new TimerReference(listener, f, r);
     }
 
     private class TimerReference extends SoftReference<TimerListener> {
 
         private final ScheduledFuture<?> f;
 
-        TimerReference(TimerListener referent, ScheduledFuture<?> f) {
+        private final Runnable r;
+
+        TimerReference(TimerListener referent, ScheduledFuture<?> f, Runnable r) {
             super(referent);
             this.f = f;
+            this.r = r;
         }
 
         @Override
@@ -121,6 +124,10 @@ public class HystrixTimer {
             super.clear();
             // stop this ScheduledFuture from any further executions
             f.cancel(false);
+            ScheduledThreadPoolExecutor pool = executor.get().getThreadPool();
+            if (!pool.remove(r)) {
+                pool.purge();
+            }
         }
 
     }
